@@ -1,0 +1,36 @@
+﻿{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "virtualNetworkSettings": {
+      "value": {
+        "name": "CE.ESIT.VNET.01",
+        "resourceGroup": "RG_QC_ESIT_network_ID",
+        "addressPrefixes": [
+          "10.195.170.0/23"
+        ],
+        "subnets": [
+          {
+            "name": "CE.ESIT.SUB.Identité.Employés.Public",
+            "addressPrefix": "10.195.170.64/27"
+          },
+          {
+            "name": "CE.ESIT.SUB.Publication.Anonyme.Public",
+            "addressPrefix": "10.195.170.0/27"
+          },
+          
+          {
+            "name": "CE.ESIT.SUB.Authentication.Admin.Public",
+            "addressPrefix": "10.195.170.32/27"
+          }
+          
+        ],
+        "dnsServers": [
+          "192.168.0.4",
+          "192.168.0.5"
+          
+        ]
+      }
+    }
+  }
+}

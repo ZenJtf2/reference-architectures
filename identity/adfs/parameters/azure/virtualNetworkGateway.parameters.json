@@ -4,30 +4,31 @@
   "parameters": {
     "virtualNetworkSettings": {
       "value": {
-        "name": "ra-adfs-vnet",
-        "resourceGroup": "ra-adfs-network-rg"
+        "name": "CE.ESIT.VNET.00",
+        "resourceGroup": "RG_CE_ESIT_network_COMMUM"
       }
     },
     "virtualNetworkGatewaySettings": {
       "value": {
-        "name": "ra-adfs-vpn-vgw",
+        "name": "CE-ESIT-vpn-vgw",
         "gatewayType": "Vpn",
-        "vpnType": "RouteBased",
-        "sku": "Standard"
+        "vpnType": "Routebased",
+        "sku": "VpnGw1"
       }
     },
     "connectionSettings": {
       "value": {
-        "name": "ra-adfs-vpn-cn",
+        "name": "CE-ESIT-vpn-cn",
         "connectionType": "Vnet2Vnet",
         "sharedKey": "123secret",
         "virtualNetworkGateway1": {
-          "name": "ra-adfs-vpn-vgw",
-          "resourceGroup": "ra-adfs-network-rg"
+          "name": "CE-ESIT-vpn-vgw",
+          "resourceGroup": "RG_CE_ESIT_network_COMMUM"
         },
-        "virtualNetworkGateway2": {
-          "name": "ra-adfs-onpremise-vpn-vgw",
-          "resourceGroup": "ra-adfs-onpremise-rg"
+        "localNetworkGateway": {
+          "name": "SAAQ-ESIT-vpn-lgw",
+          "ipAddress": "40.50.60.70",
+          "addressPrefixes": [ "192.168.0.0/16" ]
         }
       }
     }

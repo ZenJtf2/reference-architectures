@@ -2,18 +2,20 @@
 # Deploy_ReferenceArchitecture.ps1
 #
 param(
-  [Parameter(Mandatory=$False)]
-  $SubscriptionIdTier0,
 
   [Parameter(Mandatory=$true)]
   $SubscriptionId,
+  
+
+  [Parameter(Mandatory=$True)]
+  $SubscriptionIdTier0,
 
   [Parameter(Mandatory=$true)]
   $Location,
   
   [Parameter(Mandatory=$false)]
   [ValidateSet("Prepare", "Adfs",  "Proxy1", "Proxy2", "Onpremise", "Infrastructure", "CreateVpn", "AzureADDS", "AdfsVm", "PublicDmz", "ProxyVm", "Workload", "PrivateDmz")]
-  $Mode = "Prepare"
+  $Mode = "Infrastructure"
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,15 +45,6 @@ $dmzTemplate = New-Object System.Uri -ArgumentList @($templateRootUri, "template
 $virtualNetworkGatewayTemplate = New-Object System.Uri -ArgumentList @($templateRootUri, "templates/buildingBlocks/vpn-gateway-vpn-connection/azuredeploy.json")
 $virtualMachineExtensionsTemplate = New-Object System.Uri -ArgumentList @($templateRootUri, "templates/buildingBlocks/virtualMachine-extensions/azuredeploy.json")
 
-# Azure Onpremise Parameter Files
-$onpremiseVirtualNetworkParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\virtualNetwork.parameters.json")
-$onpremiseVirtualNetworkDnsParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\virtualNetwork-adds-dns.parameters.json")
-$onpremiseADDSVirtualMachinesParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\virtualMachines-adds.parameters.json")
-$onpremiseCreateAddsForestExtensionParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\create-adds-forest-extension.parameters.json")
-$onpremiseAddAddsDomainControllerExtensionParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\add-adds-domain-controller.parameters.json")
-$onpremiseReplicationSiteForestExtensionParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\create-azure-replication-site.parameters.json")
-$onpremiseVirtualNetworkGatewayParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\virtualNetworkGateway.parameters.json")
-$onpremiseConnectionParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\onpremise\connection.parameters.json")
 
 # Azure ADDS Parameter Files
 $azureVirtualNetworkOnpremiseAndAzureDnsParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\virtualNetwork-with-onpremise-and-azure-dns.parameters.json")
@@ -73,7 +66,8 @@ $azureAdfsproxyFarmRestExtensionParametersFile = [System.IO.Path]::Combine($PSSc
 
 
 $azureVirtualNetworkGatewayParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\virtualNetworkGateway.parameters.json")
-$azureVirtualNetworkParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\virtualNetwork.parameters.json")
+$azureVirtualNetworkParametersFile0 = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\virtualNetworkTier0.parameters.json")
+$azureVirtualNetworkParametersFile1 = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\virtualNetworkTierID.parameters.json")
 $webLoadBalancerParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\loadBalancer-web.parameters.json")
 $bizLoadBalancerParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\loadBalancer-biz.parameters.json")
 $dataLoadBalancerParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\loadBalancer-data.parameters.json")
@@ -81,53 +75,30 @@ $managementParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters
 $privateDmzParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\dmz-private.parameters.json")
 $publicDmzParametersFile = [System.IO.Path]::Combine($PSScriptRoot, "parameters\azure\dmz-public.parameters.json")
 
+if ($location -eq "canadaeast" ) {
+
+$Region = "CE"
+}
+if ($location -eq "canadacentral" ) {
+
+$Region = "CC"
+}
 
 # Azure Onpremise Deployments
 $onpremiseNetworkResourceGroupName = "ra-adfs-onpremise-rg"
 
-# Azure ADDS Deployments
-$azureNetworkResourceGroupName = "ra-adfs-network-rg"
-$workloadResourceGroupName = "ra-adfs-workload-rg"
-$securityResourceGroupName = "ra-adfs-security-rg"
-$addsResourceGroupName = "ra-adfs-adds-rg"
-$adfsResourceGroupName = "ra-adfs-adfs-rg"
-$adfsproxyResourceGroupName = "ra-adfs-proxy-rg"
 
-# Login to Azure and select your subscription
-Login-AzureRmAccount -SubscriptionId $SubscriptionId | Out-Null
+# Azure Deployments  
+$azureNetworkTier0ResourceGroupName = "RG_" +$Region+ "_ESIT_network_COMMUM" 
+$azureNetworkProd1ResourceGroupName =  "RG_" +$Region+ "_ESIT_network_ID" 
+$ExploitationResourceGroupName =  "RG_" +$Region+ "_ESIT_EXPL"  
+$addsTier0ResourceGroupName =  "RG_" +$Region+ "_ESIT_COMMUM" 
+$addsProd1ResourceGroupName =   "RG_"+ $Region +"_ESIT_ADDS_PUBLIC"
+$adfsResourceGroupName =  "RG_"+ $Region +"_ESIT_ID"
+$adfsproxyResourceGroupName =  "RG_"+ $Region +"_ESIT_PUBLICATION"
+$VnetNameTier0 =  "CE.ESIT.VNET.00"
+$VnetNameID =  "CE.ESIT.VNET.01"
 
-##########################################################################
-# Deploy On premises network and on premise ADDS
-##########################################################################
-
-if ($Mode -eq "Onpremise" -Or $Mode -eq "Prepare") {
-    $onpremiseNetworkResourceGroup = New-AzureRmResourceGroup -Name $onpremiseNetworkResourceGroupName -Location $Location
-    Write-Host "Creating onpremise virtual network..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-onpremise-vnet-deployment" `
-        -ResourceGroupName $onpremiseNetworkResourceGroup.ResourceGroupName -TemplateUri $virtualNetworkTemplate.AbsoluteUri `
-        -TemplateParameterFile $onpremiseVirtualNetworkParametersFile
-
-    Write-Host "Deploying ADDS servers..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-onpremise-adds-deployment" `
-        -ResourceGroupName $onpremiseNetworkResourceGroup.ResourceGroupName `
-        -TemplateUri $virtualMachineTemplate.AbsoluteUri -TemplateParameterFile $onpremiseADDSVirtualMachinesParametersFile
-
-    # Remove the Azure DNS entry since the forest will create a DNS forwarding entry.
-    Write-Host "Updating virtual network DNS servers..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-onpremise-dns-vnet-deployment" `
-        -ResourceGroupName $onpremiseNetworkResourceGroup.ResourceGroupName -TemplateUri $virtualNetworkTemplate.AbsoluteUri `
-        -TemplateParameterFile $onpremiseVirtualNetworkDnsParametersFile
-
-    Write-Host "Creating ADDS forest..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-onpremise-adds-forest-deployment" `
-        -ResourceGroupName $onpremiseNetworkResourceGroup.ResourceGroupName `
-        -TemplateUri $virtualMachineExtensionsTemplate.AbsoluteUri -TemplateParameterFile $onpremiseCreateAddsForestExtensionParametersFile
-
-    Write-Host "Creating ADDS domain controller..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-onpremise-adds-dc-deployment" `
-        -ResourceGroupName $onpremiseNetworkResourceGroup.ResourceGroupName `
-        -TemplateUri $virtualMachineExtensionsTemplate.AbsoluteUri -TemplateParameterFile $onpremiseAddAddsDomainControllerExtensionParametersFile
-}
 
 ##########################################################################
 # Deploy Vnet and VPN Infrastructure in cloud
@@ -135,35 +106,60 @@ if ($Mode -eq "Onpremise" -Or $Mode -eq "Prepare") {
 
 if ($Mode -eq "Infrastructure" -Or $Mode -eq "Prepare") {
     
+    # Login to Azure and select your subscription Tier0
+    Login-AzureRmAccount -SubscriptionId $SubscriptionIdTier0 | Out-Null
     
-    Write-Host "Creating ADDS resource group..."
-    $azureNetworkResourceGroup = New-AzureRmResourceGroup -Name $azureNetworkResourceGroupName -Location $Location
-
+    Write-Host "Creating Tier0 network..."
+    $azureNetworkResourceGroup = New-AzureRmResourceGroup -Name $azureNetworkTier0ResourceGroupName -Location $Location
+    
     # Deploy network infrastructure
     Write-Host "Deploying virtual network..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-vnet-deployment" -ResourceGroupName $azureNetworkResourceGroup.ResourceGroupName `
-        -TemplateUri $virtualNetworkTemplate.AbsoluteUri -TemplateParameterFile $azureVirtualNetworkParametersFile
+    New-AzureRmResourceGroupDeployment -Name "ESIT-Tier0-vnet-deployment" -ResourceGroupName $azureNetworkResourceGroup.ResourceGroupName -TemplateUri $virtualNetworkTemplate.AbsoluteUri -TemplateParameterFile $azureVirtualNetworkParametersFile0
 
-    # Deploy security infrastructure
-    Write-Host "Creating security resource group..."
-    $securityResourceGroup = New-AzureRmResourceGroup -Name $securityResourceGroupName -Location $Location
+    # Login to Azure and select your subscription
+    #TODO uncomment for SAAQ
+   # Login-AzureRmAccount -SubscriptionId $SubscriptionId | Out-Null
+    
+    Write-Host "Creating TierID network..."
+    $azureNetworkResourceGroup = New-AzureRmResourceGroup -Name $azureNetworkProd1ResourceGroupName -Location $Location
+    
+    # Deploy network infrastructure
+    Write-Host "Deploying virtual network..."
+    New-AzureRmResourceGroupDeployment -Name "ESIT-ID-vnet-deployment" -ResourceGroupName $azureNetworkResourceGroup.ResourceGroupName `
+    -TemplateUri $virtualNetworkTemplate.AbsoluteUri -TemplateParameterFile $azureVirtualNetworkParametersFile1
 
-    Write-Host "Deploying jumpbox..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-jumpbox-deployment" -ResourceGroupName $securityResourceGroup.ResourceGroupName `
-        -TemplateUri $virtualMachineTemplate.AbsoluteUri -TemplateParameterFile $managementParametersFile
+    # Peer Vnet00 to Vnet01
+     Write-Host "virtual network Peering..."
+    $vNet00=Get-AzureRmVirtualNetwork -Name $VnetNameTier0 -ResourceGroupName $azureNetworkTier0ResourceGroupName
+    $remoteVnetId = "/subscriptions/"+$SubscriptionId+"/resourceGroups/"+$azureNetworkProd1ResourceGroupName+"/providers/Microsoft.Network/virtualNetworks/" + $VnetNameID 
+     Write-Host $remoteVnetId 
+    Add-AzureRmVirtualNetworkPeering -Name 'Vnet00toVnet01' -VirtualNetwork $vNet00 `
+    -RemoteVirtualNetworkId $remoteVnetId  
+
+      # Peer Vnet01 to Vnet00
+    Write-Host "virtual network Peering..."
+     $vNet01=Get-AzureRmVirtualNetwork -Name $VnetNameID -ResourceGroupName $azureNetworkProd1ResourceGroupName
+    $remoteVnetId = "/subscriptions/"+$SubscriptionIdTier0+"/resourceGroups/"+$azureNetworkTier0ResourceGroupName +"/providers/Microsoft.Network/virtualNetworks/" + $VnetNameTier0 
+    Write-Host $remoteVnetId 
+    Add-AzureRmVirtualNetworkPeering -Name 'Vnet01toVnet00' -VirtualNetwork $vNet01 `
+    -RemoteVirtualNetworkId $remoteVnetId  
+
+    
+    # Deploy Exploitation infrastructure
+    #Write-Host "Creating security resource group..."
+    #$securityResourceGroup = New-AzureRmResourceGroup -Name $securityResourceGroupName -Location $Location
+
+    #Write-Host "Deploying jumpbox..."
+    #New-AzureRmResourceGroupDeployment -Name "ra-adfs-jumpbox-deployment" -ResourceGroupName $securityResourceGroup.ResourceGroupName `
+     #   -TemplateUri $virtualMachineTemplate.AbsoluteUri -TemplateParameterFile $managementParametersFile
 }
 
 if ($Mode -eq "CreateVpn" -Or $Mode -eq "Prepare") {
     $onpremiseNetworkResourceGroup = Get-AzureRmResourceGroup -Name $onpremiseNetworkResourceGroupName
-    $azureNetworkResourceGroup = Get-AzureRmResourceGroup -Name $azureNetworkResourceGroupName
-
-    Write-Host "Deploying Onpremise Virtual Network Gateway..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-onpremise-vpn-gateway-deployment" `
-        -ResourceGroupName $onpremiseNetworkResourceGroup.ResourceGroupName `
-        -TemplateFile $onPremiseVirtualNetworkGatewayTemplateFile -TemplateParameterFile $onpremiseVirtualNetworkGatewayParametersFile
+    $azureNetworkResourceGroup = Get-AzureRmResourceGroup -Name $azureNetworkTier0ResourceGroupName 
 
     Write-Host "Deploying Azure Virtual Network Gateway..."
-    New-AzureRmResourceGroupDeployment -Name "ra-adfs-vpn-gateway-deployment" -ResourceGroupName $azureNetworkResourceGroup.ResourceGroupName `
+    New-AzureRmResourceGroupDeployment -Name "vpn-gateway-deployment" -ResourceGroupName $azureNetworkResourceGroup.ResourceGroupName `
         -TemplateUri $virtualNetworkGatewayTemplate.AbsoluteUri -TemplateParameterFile $azureVirtualNetworkGatewayParametersFile
 
     Write-Host "Creating Onpremise connection..."
